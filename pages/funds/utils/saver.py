@@ -1,0 +1,88 @@
+import os
+import shutil
+import torch
+from collections import OrderedDict
+import glob
+from datetime import datetime
+
+
+class Saver(object):
+
+    def __init__(self, args):
+        self.args = args
+        self.directory = os.path.join('run', args.dataset, args.checkname)
+        self.runs = sorted(glob.glob(os.path.join(self.directory, 'experiment_*')))
+        # run_id = int(self.runs[-1].split('_')[-1]) + 1 if self.runs else 0
+        run_id = datetime.now().strftime('%Y%m%d_%H%M%S')
+        self.experiment_dir = os.path.join(self.directory, 'experiment_{}'.format(str(run_id)))
+        if not os.path.exists(self.experiment_dir):
+            os.makedirs(self.experiment_dir)
+
+    def save_checkpoint(self, state, is_best, filename='checkpoint.pth.tar'):
+        """Saves checkpoint to disk"""
+        filename = os.path.join(self.experiment_dir, filename)
+        torch.save(state, filename)
+        if is_best:
+            best_loss = state['best_loss']
+            with open(os.path.join(self.experiment_dir, 'best_loss.txt'), 'w') as f:
+                f.write(str(best_loss))
+            if self.runs:
+                previous_loss = [100.0]
+                for run in self.runs:
+                    run_id = run.split('t_')[-1]
+                    path = os.path.join(self.directory, 'experiment_{}'.format(str(run_id)), 'best_loss.txt')
+                    if os.path.exists(path):
+                        with open(path, 'r') as f:
+                            temp = next(f)
+                            loss = float(temp)
+                            previous_loss.append(loss)
+                    else:
+                        continue
+                min_loss = min(previous_loss)
+                if best_loss < min_loss:
+                    shutil.copyfile(filename, os.path.join(self.directory, 'model_best.pth.tar'))
+            else:
+                shutil.copyfile(filename, os.path.join(self.directory, 'model_best.pth.tar'))
+
+    def save_checkpoint_mAUPR(self, state, is_best, filename='best_mAUPR.pth.tar'):
+        """Saves checkpoint to disk"""
+        filename = os.path.join(self.experiment_dir, filename)
+        torch.save(state, filename)
+        if is_best:
+            best_mAUPR = state['best_mAUPR']
+            with open(os.path.join(self.experiment_dir, 'best_mAUPR.txt'), 'w') as f:
+                f.write(str(best_mAUPR))
+            if self.runs:
+                previous_mAUPR= [0.0]
+                for run in self.runs:
+                    run_id = run.split('t_')[-1]
+                    path = os.path.join(self.directory, 'experiment_{}'.format(str(run_id)), 'best_mAUPR.txt')
+                    if os.path.exists(path):
+                        with open(path, 'r') as f:
+                            temp = next(f)
+                            print(temp)
+                            mAUPR = float(temp)
+                            previous_mAUPR.append(mAUPR)
+                    else:
+                        continue
+                max_mAUPR = min(previous_mAUPR)
+                if best_mAUPR > max_mAUPR:
+                    shutil.copyfile(filename, os.path.join(self.directory, 'model_best.pth.tar'))
+            else:
+                shutil.copyfile(filename, os.path.join(self.directory, 'model_best.pth.tar'))
+
+    def save_experiment_config(self):
+        logfile = os.path.join(self.experiment_dir, 'parameters.txt')
+        log_file = open(logfile, 'w')
+        p = OrderedDict()
+        p['datset'] = self.args.dataset
+        p['out_stride'] = self.args.out_stride
+        p['lr'] = self.args.lr
+        p['lr_scheduler'] = self.args.lr_scheduler
+        p['loss_type'] = self.args.loss_type
+        p['epoch'] = self.args.epochs
+        p['image_size'] = self.args.image_size
+
+        for key, val in p.items():
+            log_file.write(key + ':' + str(val) + '\n')
+        log_file.close()
