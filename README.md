@@ -45,6 +45,16 @@ git add .
 ```
 （`.` 表示添加所有修改过的文件）
 
+```bash
+git add data/
+```
+（添加文件夹）
+
+```bash
+git add data/file.txt
+```
+（添加文件）
+
 ---
 
 ## 6. 提交更改
